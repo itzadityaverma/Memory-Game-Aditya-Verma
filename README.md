@@ -27,10 +27,6 @@ A simple browser-based memory card matching game built using vanilla HTML, CSS, 
 ## Getting Started
 
 Just download the `index.html` file and open it in any browser. No installation needed.
-```bash
-cd memory-game
-# open index.html in your browser
-```
 
 ## Author
 
