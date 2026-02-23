@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memory Game</title>
+  <meta name="author" content="Aditya Verma" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* 
+       CSS Custom Properties — Design Tokens
+       Author: Aditya Verma
+     */
+    :root {
+      --bg:        #f5f0e8;
+      --surface:   #fffdf7;
+      --border:    #e2d9c8;
+      --accent:    #d4622a;
+      --accent2:   #3a6b5c;
+      --text:      #1a1410;
+      --muted:     #7a6e62;
+      --tile-back: #2d2318;
+      --tile-front:#fffdf7;
+      --tile-matched: #e8f5f0;
+      --tile-match-border: #3a6b5c;
+      --shadow:    rgba(26,20,16,.12);
+      --radius:    16px;
+      --flip-dur:  .5s;
+      --transition: .25s cubic-bezier(.4,0,.2,1);
+    }
+    /* Dark Mode tokens */
+    [data-theme="dark"] {
+      --bg:        #141010;
+      --surface:   #1e1916;
+      --border:    #2e2a25;
+      --accent:    #e07845;
+      --accent2:   #5ba08c;
+      --text:      #f0ebe3;
+      --muted:     #9a9088;
+      --tile-back: #0d0a07;
+      --tile-front:#1e1916;
+      --tile-matched: #152920;
+      --tile-match-border: #5ba08c;
+      --shadow:    rgba(0,0,0,.4);
+    }
+
+    /*Reset & Base */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      transition: background var(--transition), color var(--transition);
+      overflow-x: hidden;
+    }
+
+    /* Grain texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity: .04;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Header Bar */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      transition: background var(--transition), border-color var(--transition);
+    }
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-weight: 900;
+      font-size: 1.3rem;
+      letter-spacing: -.02em;
+      color: var(--text);
+    }
+    .logo span { color: var(--accent); }
+
+    /* Dark toggle */
+    .toggle-btn {
+      background: var(--border);
+      border: none;
+      border-radius: 100px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .8rem;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      color: var(--muted);
+      transition: background var(--transition), color var(--transition);
+    }
+    .toggle-btn:hover { background: var(--accent); color: #fff; }
+    .toggle-icon { font-size: 1rem; }
+
+    /*WELCOME SCREEN */
+    #welcome-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100dvh - 65px);
+      padding: 40px 24px;
+      text-align: center;
+      animation: fadeUp .7s ease both;
+    }
+    .welcome-tag {
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      border: 1px solid var(--accent);
+      padding: 5px 14px;
+      border-radius: 100px;
+      display: inline-block;
+    }
+    .welcome-title {
+      font-family: 'Playfair Display', serif;
+      font-weight: 900;
+      font-size: clamp(3rem, 10vw, 6rem);
+      line-height: 1;
+      letter-spacing: -.04em;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+    .welcome-title em {
+      color: var(--accent);
+      font-style: italic;
+    }
+    .welcome-subtitle {
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 480px;
+      line-height: 1.6;
+      margin-bottom: 48px;
+    }
+
+    /* Instructions card */
+    .instructions {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      max-width: 520px;
+      width: 100%;
+      margin-bottom: 40px;
+      text-align: left;
+      box-shadow: 0 4px 32px var(--shadow);
+      transition: background var(--transition), border-color var(--transition);
+    }
+    .instructions h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+    .instructions ol {
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .instructions li {
+      font-size: .92rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .instructions li strong { color: var(--text); }
+
+    /* Start button */
+    .btn-start {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 100px;
+      padding: 16px 48px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: .02em;
+      box-shadow: 0 8px 28px rgba(212,98,42,.3);
+      transition: transform .2s, box-shadow .2s, background .2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-start::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,.15);
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .btn-start:hover { transform: translateY(-3px); box-shadow: 0 14px 40px rgba(212,98,42,.4); }
+    .btn-start:hover::after { opacity: 1; }
+    .btn-start:active { transform: translateY(0); }
+
+    
+     /* GAME SCREEN*/
+    #game-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: 36px 24px 60px;
+      min-height: calc(100dvh - 65px);
+      animation: fadeUp .5s ease both;
+    }
+    #game-screen.active { display: flex; }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 36px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .stat-label {
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .stat-value {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text);
+      min-width: 56px;
+      text-align: center;
+      line-height: 1;
+    }
+    .stat-divider {
+      width: 1px;
+      height: 40px;
+      background: var(--border);
+    }
+
+    /* Grid */
+    .grid-wrap {
+      width: 100%;
+      max-width: 520px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      width: 100%;
+    }
+
+    /* Tile */
+    .tile {
+      aspect-ratio: 1;
+      perspective: 800px;
+      cursor: pointer;
+    }
+    .tile-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform var(--flip-dur) cubic-bezier(.4,0,.2,1);
+      border-radius: 12px;
+    }
+    .tile.flipped .tile-inner,
+    .tile.matched .tile-inner { transform: rotateY(180deg); }
+
+    .tile-face {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      font-size: clamp(1.4rem, 5vw, 2rem);
+      user-select: none;
+      transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+    }
+    /* Back face (default) */
+    .tile-back {
+      background: var(--tile-back);
+      border: 2px solid rgba(255,255,255,.06);
+      box-shadow: 0 4px 16px var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    .tile-back::before {
+      content: '✦';
+      font-size: 1.2rem;
+      color: rgba(255,255,255,.15);
+      letter-spacing: 0;
+    }
+    /* Front face */
+    .tile-front {
+      background: var(--tile-front);
+      border: 2px solid var(--border);
+      box-shadow: 0 4px 16px var(--shadow);
+      transform: rotateY(180deg);
+    }
+    .tile.matched .tile-front {
+      background: var(--tile-matched);
+      border-color: var(--tile-match-border);
+      box-shadow: 0 0 0 3px rgba(58,107,92,.2);
+    }
+    .tile:not(.flipped):not(.matched):hover .tile-back {
+      border-color: var(--accent);
+      box-shadow: 0 6px 24px var(--shadow), 0 0 0 2px rgba(212,98,42,.3);
+    }
+    .tile.matched { cursor: default; }
+
+    /* Restart button */
+    .btn-restart {
+      margin-top: 36px;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--muted);
+      border-radius: 100px;
+      padding: 10px 28px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color var(--transition), color var(--transition), background var(--transition);
+    }
+    .btn-restart:hover { border-color: var(--accent); color: var(--accent); background: rgba(212,98,42,.06); }
+
+    /*WIN MODAL*/
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10,6,4,.6);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .4s;
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 48px 40px;
+      text-align: center;
+      max-width: 420px;
+      width: calc(100% - 48px);
+      box-shadow: 0 24px 80px rgba(0,0,0,.3);
+      transform: scale(.9) translateY(20px);
+      transition: transform .4s cubic-bezier(.34,1.56,.64,1), background var(--transition);
+    }
+    .modal-overlay.show .modal { transform: scale(1) translateY(0); }
+    .modal-emoji { font-size: 4rem; margin-bottom: 16px; animation: bounce 1s ease infinite; }
+    .modal h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .modal p { color: var(--muted); font-size: .95rem; line-height: 1.6; margin-bottom: 32px; }
+    .modal-stats {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin-bottom: 32px;
+    }
+    .modal-stat {
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 14px 20px;
+    }
+    .modal-stat .s-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .modal-stat .s-val { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 700; color: var(--accent); }
+
+    /*Animations*/
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes bounce {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-8px); }
+    }
+    @keyframes matched-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(58,107,92,.5); }
+      70%  { box-shadow: 0 0 0 12px rgba(58,107,92,0); }
+      100% { box-shadow: 0 0 0 0 rgba(58,107,92,0); }
+    }
+    .tile.just-matched .tile-front { animation: matched-pulse .6s ease; }
+
+    /*Footer */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: .78rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    /*Responsive*/
+    @media (max-width: 520px) {
+      header { padding: 14px 18px; }
+      .grid { gap: 10px; }
+      .instructions { padding: 22px 20px; }
+      .modal { padding: 36px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!--HEADER-->
+  <header>
+    <div class="logo">Mem<span>●</span>ry</div>
+    <button class="toggle-btn" id="darkToggle" aria-label="Toggle dark mode">
+      <span class="toggle-icon" id="toggleIcon">🌙</span>
+      <span id="toggleLabel">Dark</span>
+    </button>
+  </header>
+
+  <!--WELCOME SCREEN-->
+  <div id="welcome-screen">
+    <div class="welcome-tag">✦ Card Matching Game</div>
+    <h1 class="welcome-title">Can you<br><em>remember</em><br>them all?</h1>
+    <p class="welcome-subtitle">
+      A classic memory challenge. Flip tiles, find pairs, and beat your own record.
+      Simple rules — surprisingly satisfying.
+    </p>
+
+    <div class="instructions">
+      <h3>How to play</h3>
+      <ol>
+        <li><strong>Flip a tile</strong> by clicking on it to reveal a hidden icon.</li>
+        <li><strong>Find the pair</strong> — click a second tile to try and match it.</li>
+        <li>If they <strong>match</strong>, both stay face-up. If not, they flip back.</li>
+        <li>Match <strong>all 8 pairs</strong> to win the game!</li>
+        <li>Try to finish with the <strong>fewest moves</strong> and fastest time.</li>
+      </ol>
+    </div>
+
+    <button class="btn-start" id="startBtn">Start Playing ↗</button>
+  </div>
+
+  <!--GAME SCREEN-->
+  <div id="game-screen">
+    <div class="stats-bar">
+      <div class="stat">
+        <span class="stat-label">Moves</span>
+        <span class="stat-value" id="movesDisplay">0</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-label">Pairs</span>
+        <span class="stat-value" id="pairsDisplay">0<small style="font-size:.9rem;color:var(--muted)">/8</small></span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-label">Time</span>
+        <span class="stat-value" id="timerDisplay">0:00</span>
+      </div>
+    </div>
+
+    <div class="grid-wrap">
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <button class="btn-restart" id="restartBtn">↺ Restart</button>
+  </div>
+
+  <!--WIN MODAL-->
+  <div class="modal-overlay" id="winModal" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+    <div class="modal">
+      <div class="modal-emoji">🎉</div>
+      <h2 id="winTitle">You did it!</h2>
+      <p>Your memory is impressive. Every pair found, every card remembered.</p>
+      <div class="modal-stats">
+        <div class="modal-stat">
+          <div class="s-label">Moves</div>
+          <div class="s-val" id="finalMoves">—</div>
+        </div>
+        <div class="modal-stat">
+          <div class="s-label">Time</div>
+          <div class="s-val" id="finalTime">—</div>
+        </div>
+      </div>
+      <button class="btn-start" id="playAgainBtn">Play Again ↗</button>
+    </div>
+  </div>
+
+  <!--FOOTER  -->
+  <footer>Made by Aditya Verma · 2026</footer>
+
+  <script>
+    const ICONS = ['🦊', '🌵', '🎸', '🧩', '🍄', '🪐', '🔮', '🎭'];
+
+    // Game State
+    let tiles       = [];   
+    let flipped     = [];   
+    let matched     = 0;    
+    let moves       = 0;    
+    let canFlip     = true; 
+    let timerID     = null; 
+    let seconds     = 0;    
+
+    // DOM refs 
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const gameScreen    = document.getElementById('game-screen');
+    const gridEl        = document.getElementById('grid');
+    const movesDisplay  = document.getElementById('movesDisplay');
+    const pairsDisplay  = document.getElementById('pairsDisplay');
+    const timerDisplay  = document.getElementById('timerDisplay');
+    const winModal      = document.getElementById('winModal');
+    const finalMoves    = document.getElementById('finalMoves');
+    const finalTime     = document.getElementById('finalTime');
+    const darkToggle    = document.getElementById('darkToggle');
+    const toggleIcon    = document.getElementById('toggleIcon');
+    const toggleLabel   = document.getElementById('toggleLabel');
+
+    
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    //Format seconds → m:ss 
+    function formatTime(s) {
+      const m = Math.floor(s / 60).toString();
+      const sec = (s % 60).toString().padStart(2, '0');
+      return `${m}:${sec}`;
+    }
+
+    //Start the timer 
+    function startTimer() {
+      stopTimer();
+      seconds = 0;
+      timerDisplay.textContent = '0:00';
+      timerID = setInterval(() => {
+        seconds++;
+        timerDisplay.textContent = formatTime(seconds);
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(timerID);
+      timerID = null;
+    }
+
+    //Build and render the game grid
+    function buildGrid() {
+      const deck = shuffle([...ICONS, ...ICONS]);
+      tiles = deck.map((icon, index) => ({ id: index, icon, flipped: false, matched: false }));
+      matched = 0;
+      moves   = 0;
+      flipped = [];
+      canFlip = true;
+
+      updateStats();
+      gridEl.innerHTML = '';
+
+      tiles.forEach((tile, i) => {
+        const tileEl = document.createElement('div');
+        tileEl.className = 'tile';
+        tileEl.dataset.index = i;
+        tileEl.style.animation = `fadeUp .4s ease ${i * 35}ms both`;
+        tileEl.setAttribute('aria-label', `Tile ${i + 1}, face down`);
+        tileEl.setAttribute('role', 'button');
+        tileEl.setAttribute('tabindex', '0');
+
+        tileEl.innerHTML = `
+          <div class="tile-inner">
+            <div class="tile-face tile-back"></div>
+            <div class="tile-face tile-front">${tile.icon}</div>
+          </div>`;
+
+        tileEl.addEventListener('click', () => handleTileClick(i, tileEl));
+        tileEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') handleTileClick(i, tileEl);
+        });
+
+        gridEl.appendChild(tileEl);
+      });
+    }
+
+    function handleTileClick(index, el) {
+      const tile = tiles[index];
+      if (!canFlip || tile.flipped || tile.matched) return;
+
+      if (moves === 0 && flipped.length === 0) startTimer();
+
+      tile.flipped = true;
+      el.classList.add('flipped');
+      el.setAttribute('aria-label', `Tile ${index + 1}, showing ${tile.icon}`);
+      flipped.push({ index, el });
+
+      if (flipped.length === 2) {
+        moves++;
+        updateStats();
+        checkMatch();
+      }
+    }
+
+    //two flipped tiles match 
+    function checkMatch() {
+      const [a, b] = flipped;
+      const tileA  = tiles[a.index];
+      const tileB  = tiles[b.index];
+
+      if (tileA.icon === tileB.icon) {
+        tileA.matched = true;
+        tileB.matched = true;
+        a.el.classList.add('matched', 'just-matched');
+        b.el.classList.add('matched', 'just-matched');
+        a.el.setAttribute('aria-label', `Tile matched: ${tileA.icon}`);
+        b.el.setAttribute('aria-label', `Tile matched: ${tileB.icon}`);
+
+        setTimeout(() => {
+          a.el.classList.remove('just-matched');
+          b.el.classList.remove('just-matched');
+        }, 700);
+
+        flipped = [];
+        matched++;
+        updateStats();
+
+        if (matched === ICONS.length) {
+          stopTimer();
+          setTimeout(showWin, 600);
+        }
+      } else {
+        // Mismatch — flip back after delay
+        canFlip = false;
+        setTimeout(() => {
+          tileA.flipped = false;
+          tileB.flipped = false;
+          a.el.classList.remove('flipped');
+          b.el.classList.remove('flipped');
+          a.el.setAttribute('aria-label', `Tile ${a.index + 1}, face down`);
+          b.el.setAttribute('aria-label', `Tile ${b.index + 1}, face down`);
+          flipped  = [];
+          canFlip  = true;
+        }, 900);
+      }
+    }
+
+    //Update stats display
+    function updateStats() {
+      movesDisplay.textContent = moves;
+      pairsDisplay.innerHTML   = `${matched}<small style="font-size:.9rem;color:var(--muted)">/8</small>`;
+    }
+
+    //Show the win modal
+    function showWin() {
+      finalMoves.textContent = moves;
+      finalTime.textContent  = formatTime(seconds);
+      winModal.classList.add('show');
+    }
+
+    //Switch screens
+    function showGame() {
+      welcomeScreen.style.display = 'none';
+      gameScreen.classList.add('active');
+      buildGrid();
+    }
+
+    function restartGame() {
+      stopTimer();
+      winModal.classList.remove('show');
+      buildGrid();
+    }
+
+    //Dark Mode toggle
+    function applyTheme(dark) {
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : '');
+      toggleIcon.textContent  = dark ? '☀️' : '🌙';
+      toggleLabel.textContent = dark ? 'Light' : 'Dark';
+      localStorage.setItem('memgame-theme', dark ? 'dark' : 'light');
+    }
+
+    darkToggle.addEventListener('click', () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      applyTheme(!isDark);
+    });
+
+    // Restore saved theme
+    if (localStorage.getItem('memgame-theme') === 'dark') applyTheme(true);
+
+    //Button listeners
+    document.getElementById('startBtn').addEventListener('click', showGame);
+    document.getElementById('restartBtn').addEventListener('click', restartGame);
+    document.getElementById('playAgainBtn').addEventListener('click', restartGame);
+  </script>
+
+
+</body></html>
